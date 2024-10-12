@@ -28,6 +28,7 @@ void exposeMultibody() {
   exposeDataCollectorContacts();
   exposeDataCollectorImpulses();
   exposeDifferentialActionFreeFwdDynamics();
+  exposeDifferentialActionImpedanceFwdDynamics();
   exposeDifferentialActionFreeInvDynamics();
   exposeDifferentialActionContactFwdDynamics();
   exposeDifferentialActionContactInvDynamics();
@@ -42,6 +43,7 @@ void exposeMultibody() {
   exposeResidualContactControlGrav();
   exposeResidualControlGrav();
   exposeResidualFramePlacement();
+  exposeResidualImpedanceForce();
   exposeResidualFrameRotation();
   exposeResidualFrameTranslation();
   exposeResidualFrameVelocity();

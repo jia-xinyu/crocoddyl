@@ -47,6 +47,11 @@ template <typename Scalar>
 struct DifferentialActionDataFreeFwdDynamicsTpl;
 
 template <typename Scalar>
+class DifferentialActionModelImpedanceFwdDynamicsTpl;
+template <typename Scalar>
+struct DifferentialActionDataImpedanceFwdDynamicsTpl;
+
+template <typename Scalar>
 class DifferentialActionModelFreeInvDynamicsTpl;
 template <typename Scalar>
 struct DifferentialActionDataFreeInvDynamicsTpl;
@@ -117,6 +122,11 @@ template <typename Scalar>
 class ResidualModelFramePlacementTpl;
 template <typename Scalar>
 struct ResidualDataFramePlacementTpl;
+
+template <typename Scalar>
+class ResidualModelImpedanceForceTpl;
+template <typename Scalar>
+struct ResidualDataImpedanceForceTpl;
 
 template <typename Scalar>
 class ResidualModelFrameRotationTpl;
@@ -263,6 +273,10 @@ typedef DifferentialActionModelFreeFwdDynamicsTpl<double>
     DifferentialActionModelFreeFwdDynamics;
 typedef DifferentialActionDataFreeFwdDynamicsTpl<double>
     DifferentialActionDataFreeFwdDynamics;
+typedef DifferentialActionModelImpedanceFwdDynamicsTpl<double>
+    DifferentialActionModelImpedanceFwdDynamics;
+typedef DifferentialActionDataImpedanceFwdDynamicsTpl<double>
+    DifferentialActionDataImpedanceFwdDynamics;
 typedef DifferentialActionModelFreeInvDynamicsTpl<double>
     DifferentialActionModelFreeInvDynamics;
 typedef DifferentialActionDataFreeInvDynamicsTpl<double>
@@ -312,6 +326,8 @@ typedef ResidualModelControlGravTpl<double> ResidualModelControlGrav;
 typedef ResidualDataControlGravTpl<double> ResidualDataControlGrav;
 typedef ResidualModelFramePlacementTpl<double> ResidualModelFramePlacement;
 typedef ResidualDataFramePlacementTpl<double> ResidualDataFramePlacement;
+typedef ResidualModelImpedanceForceTpl<double> ResidualModelImpedanceForce;
+typedef ResidualDataImpedanceForceTpl<double> ResidualDataImpedanceForce;
 typedef ResidualModelFrameRotationTpl<double> ResidualModelFrameRotation;
 typedef ResidualDataFrameRotationTpl<double> ResidualDataFrameRotation;
 typedef ResidualModelFrameTranslationTpl<double> ResidualModelFrameTranslation;
