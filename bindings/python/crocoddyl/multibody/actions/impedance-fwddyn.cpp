@@ -32,12 +32,14 @@ void exposeDifferentialActionImpedanceFwdDynamics() {
       "include the armature, you need to use set_armature(). On the other "
       "hand, the\n"
       "stack of cost functions are implemented in CostModelSum().",
-      bp::init<boost::shared_ptr<StateMultibody>,
+      bp::init<const pinocchio::SE3&,
+               boost::shared_ptr<StateMultibody>,
                boost::shared_ptr<ActuationModelAbstract>,
                boost::shared_ptr<CostModelSum>,
                bp::optional<boost::shared_ptr<ConstraintModelManager> > >(
-          bp::args("self", "state", "actuation", "costs", "constraints"),
+          bp::args("self", "pref", "state", "actuation", "costs", "constraints"),
           "Initialize the free forward-dynamics action model.\n\n"
+          ":param pref: reference joint placement\n"
           ":param state: multibody state\n"
           ":param actuation: abstract actuation model\n"
           ":param costs: stack of cost functions\n"
@@ -114,6 +116,27 @@ void exposeDifferentialActionImpedanceFwdDynamics() {
                     bp::make_function(
                         &DifferentialActionModelImpedanceFwdDynamics::set_armature),
                     "set an armature mechanism in the joints")
+      .add_property("reference",
+                    bp::make_function(
+                        &DifferentialActionModelImpedanceFwdDynamics::get_reference,
+                        bp::return_internal_reference<>()),
+                    bp::make_function(
+                        &DifferentialActionModelImpedanceFwdDynamics::set_reference),
+                    "reference joint placement")
+      .add_property("stiffness",
+                    bp::make_function(
+                        &DifferentialActionModelImpedanceFwdDynamics::get_stiffness,
+                        bp::return_internal_reference<>()),
+                    bp::make_function(
+                        &DifferentialActionModelImpedanceFwdDynamics::set_stiffness),
+                    "impedance stiffness")
+      .add_property("damping",
+                    bp::make_function(
+                        &DifferentialActionModelImpedanceFwdDynamics::get_damping,
+                        bp::return_internal_reference<>()),
+                    bp::make_function(
+                        &DifferentialActionModelImpedanceFwdDynamics::set_damping),
+                    "impedance damping")
       .def(CopyableVisitor<DifferentialActionModelImpedanceFwdDynamics>());
 
   bp::register_ptr_to_python<
@@ -158,6 +181,16 @@ void exposeDifferentialActionImpedanceFwdDynamics() {
                           bp::return_internal_reference<>()),
           "force-bias vector that accounts for control, Coriolis and "
           "gravitational effects")
+      .add_property(
+          "Xerr",
+          bp::make_getter(&DifferentialActionDataImpedanceFwdDynamics::Xerr,
+                          bp::return_internal_reference<>()),
+          "error joint placement of the joint")
+      .add_property(
+          "F",
+          bp::make_getter(&DifferentialActionDataImpedanceFwdDynamics::F,
+                          bp::return_internal_reference<>()),
+          "external wrench of the joint")
       .def(CopyableVisitor<DifferentialActionDataImpedanceFwdDynamics>());
 }
 

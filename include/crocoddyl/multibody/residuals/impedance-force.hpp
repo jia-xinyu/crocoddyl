@@ -6,8 +6,8 @@
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef CROCODDYL_MULTIBODY_RESIDUALS_FRAME_PLACEMENT_HPP_
-#define CROCODDYL_MULTIBODY_RESIDUALS_FRAME_PLACEMENT_HPP_
+#ifndef CROCODDYL_MULTIBODY_RESIDUALS_IMPEDANCE_FORCE_HPP_
+#define CROCODDYL_MULTIBODY_RESIDUALS_IMPEDANCE_FORCE_HPP_
 
 #include <pinocchio/multibody/fwd.hpp>
 #include <pinocchio/spatial/se3.hpp>
@@ -51,6 +51,10 @@ class ResidualModelImpedanceForceTpl
   typedef typename MathBase::VectorXs VectorXs;
   typedef pinocchio::SE3Tpl<Scalar> SE3;
 
+  // ---- Impedance ---
+  typedef typename MathBase::Vector6s Vector6s;
+  typedef typename MathBase::Matrix6s Matrix6s;
+
   /**
    * @brief Initialize the frame placement residual model
    *
@@ -61,7 +65,7 @@ class ResidualModelImpedanceForceTpl
    */
   ResidualModelImpedanceForceTpl(boost::shared_ptr<StateMultibody> state,
                                  const pinocchio::FrameIndex id,
-                                 const SE3& pref, const std::size_t nu);
+                                 const SE3& pref, const Vector6s& Fref, const std::size_t nu);
 
   /**
    * @brief Initialize the frame placement residual model
@@ -74,7 +78,7 @@ class ResidualModelImpedanceForceTpl
    */
   ResidualModelImpedanceForceTpl(boost::shared_ptr<StateMultibody> state,
                                  const pinocchio::FrameIndex id,
-                                 const SE3& pref);
+                                 const SE3& pref, const Vector6s& Fref);
   virtual ~ResidualModelImpedanceForceTpl();
 
   /**
@@ -132,6 +136,16 @@ class ResidualModelImpedanceForceTpl
    */
   virtual void print(std::ostream& os) const;
 
+  /**
+   * @brief Set the impedance gain
+   */
+  const Vector6s& get_wrench() const;
+  const Matrix6s& get_stiffness() const;
+  const Matrix6s& get_damping() const;
+  void set_wrench(const Vector6s& wrench);
+  void set_stiffness(const Matrix6s& K);
+  void set_damping(const Matrix6s& D);
+
  protected:
   using Base::nu_;
   using Base::state_;
@@ -145,6 +159,10 @@ class ResidualModelImpedanceForceTpl
   pinocchio::SE3Tpl<Scalar> oMf_inv_;  //!< Inverse reference placement
   boost::shared_ptr<typename StateMultibody::PinocchioModel>
       pin_model_;  //!< Pinocchio model
+
+  // ---- Impedance ---
+  Vector6s Fref_;                       //!< External wrench of the frame
+  Matrix6s Kmat_, Dmat_;                //!< Stiffness, damping
 };
 
 template <typename _Scalar>
@@ -166,6 +184,7 @@ struct ResidualDataImpedanceForceTpl : public ResidualDataAbstractTpl<_Scalar> {
     r.setZero();
     rJf.setZero();
     fJf.setZero();
+    F.setZero();    // ---- Impedance ---
     // Check that proper shared data has been passed
     DataCollectorMultibodyTpl<Scalar>* d =
         dynamic_cast<DataCollectorMultibodyTpl<Scalar>*>(shared);
@@ -184,6 +203,9 @@ struct ResidualDataImpedanceForceTpl : public ResidualDataAbstractTpl<_Scalar> {
   Matrix6s rJf;                   //!< Error Jacobian of the frame
   Matrix6xs fJf;                  //!< Local Jacobian of the frame
 
+  // ---- Impedance ---
+  Vector6s F;       //!< External wrench of the frame
+
   using Base::r;
   using Base::Ru;
   using Base::Rx;
@@ -197,4 +219,4 @@ struct ResidualDataImpedanceForceTpl : public ResidualDataAbstractTpl<_Scalar> {
 /* --- Details -------------------------------------------------------------- */
 #include "crocoddyl/multibody/residuals/impedance-force.hxx"
 
-#endif  // CROCODDYL_MULTIBODY_RESIDUALS_FRAME_PLACEMENT_HPP_
+#endif  // CROCODDYL_MULTIBODY_RESIDUALS_IMPEDANCE_FORCE_HPP_

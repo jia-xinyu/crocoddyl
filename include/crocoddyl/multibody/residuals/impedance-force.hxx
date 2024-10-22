@@ -15,12 +15,15 @@ namespace crocoddyl {
 template <typename Scalar>
 ResidualModelImpedanceForceTpl<Scalar>::ResidualModelImpedanceForceTpl(
     boost::shared_ptr<StateMultibody> state, const pinocchio::FrameIndex id,
-    const SE3& pref, const std::size_t nu)
+    const SE3& pref, const Vector6s& Fref, const std::size_t nu)
     : Base(state, 6, nu, true, false, false),
       id_(id),
       pref_(pref),
       oMf_inv_(pref.inverse()),
-      pin_model_(state->get_pinocchio()) {
+      pin_model_(state->get_pinocchio()),
+      Fref_(Fref),                // ---- Impedance ---
+      Kmat_(Matrix6s::Zero()),
+      Dmat_(Matrix6s::Zero()) {
   if (static_cast<pinocchio::FrameIndex>(state->get_pinocchio()->nframes) <=
       id) {
     throw_pretty(
@@ -32,12 +35,15 @@ ResidualModelImpedanceForceTpl<Scalar>::ResidualModelImpedanceForceTpl(
 template <typename Scalar>
 ResidualModelImpedanceForceTpl<Scalar>::ResidualModelImpedanceForceTpl(
     boost::shared_ptr<StateMultibody> state, const pinocchio::FrameIndex id,
-    const SE3& pref)
+    const SE3& pref, const Vector6s& Fref)
     : Base(state, 6, true, false, false),
       id_(id),
       pref_(pref),
       oMf_inv_(pref.inverse()),
-      pin_model_(state->get_pinocchio()) {
+      pin_model_(state->get_pinocchio()),
+      Fref_(Fref),                // ---- Impedance ---
+      Kmat_(Matrix6s::Zero()),
+      Dmat_(Matrix6s::Zero()) {
   if (static_cast<pinocchio::FrameIndex>(state->get_pinocchio()->nframes) <=
       id) {
     throw_pretty(
@@ -52,13 +58,25 @@ ResidualModelImpedanceForceTpl<Scalar>::~ResidualModelImpedanceForceTpl() {}
 template <typename Scalar>
 void ResidualModelImpedanceForceTpl<Scalar>::calc(
     const boost::shared_ptr<ResidualDataAbstract>& data,
-    const Eigen::Ref<const VectorXs>&, const Eigen::Ref<const VectorXs>&) {
+    const Eigen::Ref<const VectorXs>& x, const Eigen::Ref<const VectorXs>&) {
   Data* d = static_cast<Data*>(data.get());
+  const Eigen::VectorBlock<const Eigen::Ref<const VectorXs>, Eigen::Dynamic> v =
+      x.tail(state_->get_nv());
 
   // Compute the frame placement w.r.t. the reference frame
   pinocchio::updateFramePlacement(*pin_model_.get(), *d->pinocchio, id_);
   d->rMf = oMf_inv_ * d->pinocchio->oMf[id_];
-  data->r = pinocchio::log6(d->rMf).toVector();
+  // data->r = pinocchio::log6(d->rMf).toVector();
+  
+  // ---- Impedance --- See "DifferentialActionModelImpedanceFwdDynamicsTp"
+  /*! 
+   * rMf (= p-pref) = Tref㊀T = Tref^-1 * T, w.r.t. the reference frame 
+   * F = K*(p-pref) + D*V, of direction is (-)
+   */
+  pinocchio::getFrameJacobian(*pin_model_.get(), *d->pinocchio, id_,
+                              pinocchio::LOCAL, d->fJf);
+  d->F = Kmat_ * pinocchio::log6(d->rMf).toVector() + Dmat_ * d->fJf * v;
+  data->r = d->F - Fref_;
 }
 
 template <typename Scalar>
@@ -72,7 +90,11 @@ void ResidualModelImpedanceForceTpl<Scalar>::calcDiff(
   pinocchio::Jlog6(d->rMf, d->rJf);
   pinocchio::getFrameJacobian(*pin_model_.get(), *d->pinocchio, id_,
                               pinocchio::LOCAL, d->fJf);
-  data->Rx.leftCols(nv).noalias() = d->rJf * d->fJf;
+  // data->Rx.leftCols(nv).noalias() = d->rJf * d->fJf;
+
+  // ---- Impedance ---
+  data->Rx.leftCols(nv).noalias() = Kmat_ * d->rJf * d->fJf;
+  data->Rx.rightCols(nv).noalias() = Dmat_ * d->fJf;
 }
 
 template <typename Scalar>
@@ -116,6 +138,38 @@ void ResidualModelImpedanceForceTpl<Scalar>::set_reference(
     const SE3& placement) {
   pref_ = placement;
   oMf_inv_ = placement.inverse();
+}
+
+// ---- Impedance ---
+template <typename Scalar>
+const typename MathBaseTpl<Scalar>::Vector6s&
+ResidualModelImpedanceForceTpl<Scalar>::get_wrench() const {
+  return Fref_;
+}
+template <typename Scalar>
+const typename MathBaseTpl<Scalar>::Matrix6s&
+ResidualModelImpedanceForceTpl<Scalar>::get_stiffness() const {
+  return Kmat_;
+}
+template <typename Scalar>
+const typename MathBaseTpl<Scalar>::Matrix6s&
+ResidualModelImpedanceForceTpl<Scalar>::get_damping() const {
+  return Dmat_;
+}
+template <typename Scalar>
+void ResidualModelImpedanceForceTpl<Scalar>::set_wrench(
+  const Vector6s& wrench) {
+  Fref_ = wrench;
+}
+template <typename Scalar>
+void ResidualModelImpedanceForceTpl<Scalar>::set_stiffness(
+  const Matrix6s& K) {
+  Kmat_ = K;
+}
+template <typename Scalar>
+void ResidualModelImpedanceForceTpl<Scalar>::set_damping(
+  const Matrix6s& D) {
+  Dmat_ = D;
 }
 
 }  // namespace crocoddyl

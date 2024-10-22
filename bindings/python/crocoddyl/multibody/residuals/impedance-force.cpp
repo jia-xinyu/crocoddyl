@@ -15,6 +15,8 @@ namespace crocoddyl {
 namespace python {
 
 void exposeResidualImpedanceForce() {
+  typedef Eigen::Matrix<double, 6, 1> Vector6d;
+
   bp::register_ptr_to_python<boost::shared_ptr<ResidualModelImpedanceForce> >();
 
   bp::class_<ResidualModelImpedanceForce, bp::bases<ResidualModelAbstract> >(
@@ -24,21 +26,23 @@ void exposeResidualImpedanceForce() {
       "as\n"
       "the current and reference frame placements, respectively.",
       bp::init<boost::shared_ptr<StateMultibody>, pinocchio::FrameIndex,
-               pinocchio::SE3, std::size_t>(
-          bp::args("self", "state", "id", "pref", "nu"),
+               pinocchio::SE3, Vector6d, std::size_t>(
+          bp::args("self", "state", "id", "pref", "Fref", "nu"),
           "Initialize the frame placement residual model.\n\n"
           ":param state: state of the multibody system\n"
           ":param id: reference frame id\n"
           ":param pref: reference frame placement\n"
+          ":param Fref: reference frame wrench\n"
           ":param nu: dimension of control vector"))
       .def(bp::init<boost::shared_ptr<StateMultibody>, pinocchio::FrameIndex,
-                    pinocchio::SE3>(
-          bp::args("self", "state", "id", "pref"),
+                    pinocchio::SE3, Vector6d>(
+          bp::args("self", "state", "id", "pref", "Fref"),
           "Initialize the frame placement residual model.\n\n"
           "The default nu value is obtained from state.nv.\n"
           ":param state: state of the multibody system\n"
           ":param id: reference frame id\n"
-          ":param pref: reference frame placement"))
+          ":param pref: reference frame placement\n"
+          ":param Fref: reference frame wrench"))
       .def<void (ResidualModelImpedanceForce::*)(
           const boost::shared_ptr<ResidualDataAbstract>&,
           const Eigen::Ref<const Eigen::VectorXd>&,
@@ -81,11 +85,32 @@ void exposeResidualImpedanceForce() {
       .add_property("id", &ResidualModelImpedanceForce::get_id,
                     &ResidualModelImpedanceForce::set_id, "reference frame id")
       .add_property(
-          "reference",
+          "pref",
           bp::make_function(&ResidualModelImpedanceForce::get_reference,
                             bp::return_internal_reference<>()),
           &ResidualModelImpedanceForce::set_reference,
           "reference frame placement")
+      .add_property("Fref",
+                    bp::make_function(
+                        &ResidualModelImpedanceForce::get_wrench,
+                        bp::return_internal_reference<>()),
+                    bp::make_function(
+                        &ResidualModelImpedanceForce::set_wrench),
+                    "reference frame wrench")
+      .add_property("stiffness",
+                    bp::make_function(
+                        &ResidualModelImpedanceForce::get_stiffness,
+                        bp::return_internal_reference<>()),
+                    bp::make_function(
+                        &ResidualModelImpedanceForce::set_stiffness),
+                    "impedance stiffness")
+      .add_property("damping",
+                    bp::make_function(
+                        &ResidualModelImpedanceForce::get_damping,
+                        bp::return_internal_reference<>()),
+                    bp::make_function(
+                        &ResidualModelImpedanceForce::set_damping),
+                    "impedance damping")
       .def(CopyableVisitor<ResidualModelImpedanceForce>());
 
   bp::register_ptr_to_python<boost::shared_ptr<ResidualDataImpedanceForce> >();
@@ -115,6 +140,11 @@ void exposeResidualImpedanceForce() {
                     bp::make_getter(&ResidualDataImpedanceForce::fJf,
                                     bp::return_internal_reference<>()),
                     "local Jacobian of the frame")
+      .add_property(
+          "F",
+          bp::make_getter(&ResidualDataImpedanceForce::F,
+                          bp::return_internal_reference<>()),
+          "external wrench of the frame")
       .def(CopyableVisitor<ResidualDataImpedanceForce>());
 }
 

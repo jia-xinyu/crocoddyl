@@ -74,7 +74,12 @@ class DifferentialActionModelImpedanceFwdDynamicsTpl
   typedef typename MathBase::VectorXs VectorXs;
   typedef typename MathBase::MatrixXs MatrixXs;
 
+  // ---- Impedance ---
+  typedef typename MathBase::Vector6s Vector6s;
+  typedef typename MathBase::Matrix6s Matrix6s;
+
   DifferentialActionModelImpedanceFwdDynamicsTpl(
+      const pinocchio::SE3Tpl<Scalar>& pref,
       boost::shared_ptr<StateMultibody> state,
       boost::shared_ptr<ActuationModelAbstract> actuation,
       boost::shared_ptr<CostModelSum> costs,
@@ -190,6 +195,17 @@ class DifferentialActionModelImpedanceFwdDynamicsTpl
   const VectorXs& get_armature() const;
 
   /**
+   * @brief Set the impedance control (reference = contact point)
+   */
+  const pinocchio::SE3Tpl<Scalar>& get_reference() const;
+  const Matrix6s& get_stiffness() const;
+  const Matrix6s& get_damping() const;
+
+  void set_reference(const pinocchio::SE3Tpl<Scalar>& pref);
+  void set_stiffness(const Matrix6s& K);
+  void set_damping(const Matrix6s& D);
+
+  /**
    * @brief Modify the armature vector
    */
   void set_armature(const VectorXs& armature);
@@ -214,6 +230,10 @@ class DifferentialActionModelImpedanceFwdDynamicsTpl
   pinocchio::ModelTpl<Scalar>& pinocchio_;                 //!< Pinocchio model
   bool without_armature_;  //!< Indicate if we have defined an armature
   VectorXs armature_;      //!< Armature vector
+
+  // ---- Impedance ---
+  pinocchio::SE3Tpl<Scalar> pref_;      //!< Reference joint placement
+  Matrix6s Kmat_, Dmat_;                //!< Stiffness, damping
 };
 
 template <typename _Scalar>
@@ -229,6 +249,11 @@ struct DifferentialActionDataImpedanceFwdDynamicsTpl
   typedef typename MathBase::VectorXs VectorXs;
   typedef typename MathBase::MatrixXs MatrixXs;
 
+  // ---- Impedance ---
+  typedef typename MathBase::Vector6s Vector6s;
+  typedef typename MathBase::Matrix6s Matrix6s;
+  typedef typename MathBase::Matrix6xs Matrix6xs;
+
   template <template <typename Scalar> class Model>
   explicit DifferentialActionDataImpedanceFwdDynamicsTpl(Model<Scalar>* const model)
       : Base(model),
@@ -241,7 +266,8 @@ struct DifferentialActionDataImpedanceFwdDynamicsTpl
         Minv(model->get_state()->get_nv(), model->get_state()->get_nv()),
         u_drift(model->get_state()->get_nv()),
         dtau_dx(model->get_state()->get_nv(), model->get_state()->get_ndx()),
-        tmp_xstatic(model->get_state()->get_nx()) {
+        tmp_xstatic(model->get_state()->get_nx()),
+        J(6, model->get_state()->get_nv()) {      // ---- Impedance ---
     multibody.joint->dtau_du.diagonal().setOnes();
     costs->shareMemory(this);
     if (model->get_constraints() != nullptr) {
@@ -252,6 +278,12 @@ struct DifferentialActionDataImpedanceFwdDynamicsTpl
     u_drift.setZero();
     dtau_dx.setZero();
     tmp_xstatic.setZero();
+
+    // ---- Impedance ---
+    dXerr.setZero();
+    F.setZero();
+    J.setZero();
+    fext.resize(model->get_pinocchio().joints.size(), pinocchio::ForceTpl<Scalar>::Zero());
   }
 
   pinocchio::DataTpl<Scalar> pinocchio;
@@ -263,6 +295,13 @@ struct DifferentialActionDataImpedanceFwdDynamicsTpl
   MatrixXs dtau_dx;
   VectorXs tmp_xstatic;
 
+  // ---- Impedance ---
+  pinocchio::SE3Tpl<Scalar> Xerr;   //!< Error joint placement of the joint
+  Matrix6s dXerr;                   //!< Right derivative of the error joint placement
+  Vector6s F;                       //!< External wrench of the joint
+  Matrix6xs J;                      //!< Local Jacobian of the joint
+  PINOCCHIO_ALIGNED_STD_VECTOR(pinocchio::ForceTpl<Scalar>) fext;
+  
   using Base::cost;
   using Base::Fu;
   using Base::Fx;

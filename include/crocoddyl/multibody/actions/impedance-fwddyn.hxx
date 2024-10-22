@@ -25,6 +25,7 @@ namespace crocoddyl {
 template <typename Scalar>
 DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::
     DifferentialActionModelImpedanceFwdDynamicsTpl(
+        const pinocchio::SE3Tpl<Scalar>& pref,
         boost::shared_ptr<StateMultibody> state,
         boost::shared_ptr<ActuationModelAbstract> actuation,
         boost::shared_ptr<CostModelSum> costs,
@@ -35,7 +36,10 @@ DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::
       constraints_(constraints),
       pinocchio_(*state->get_pinocchio().get()),
       without_armature_(true),
-      armature_(VectorXs::Zero(state->get_nv())) {
+      armature_(VectorXs::Zero(state->get_nv())),
+      pref_(pref),   // ---- Impedance ---
+      Kmat_(Matrix6s::Zero()),
+      Dmat_(Matrix6s::Zero()) {
   if (costs_->get_nu() != nu_) {
     throw_pretty(
         "Invalid argument: "
@@ -73,10 +77,23 @@ void DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::calc(
 
   actuation_->calc(d->multibody.actuation, x, u);
 
+  // ---- Impedance --- See "ResidualModelImpedanceForceTpl"
+  /*!
+   * Xerr (= p-pref) = Tref㊀T = Tref^-1 * T, w.r.t. the reference joint
+   * F = K*(p-pref) + D*V, of direction is (-)
+   */
+  const std::size_t id_ = state_->get_nq();   // the last joint
+  pinocchio::forwardKinematics(pinocchio_, d->pinocchio, q);
+  d->Xerr = pref_.inverse() * d->pinocchio.oMi[id_];
+  pinocchio::computeJointJacobian(pinocchio_, d->pinocchio, q, 
+                                  id_, d->J); // joint Jacobian (not frame)
+  d->F = Kmat_ * pinocchio::log6(d->Xerr).toVector() + Dmat_ * d->J * v;
+  d->fext[id_] = d->F;
+  
   // Computing the dynamics using ABA or manually for armature case
   if (without_armature_) {
     d->xout = pinocchio::aba(pinocchio_, d->pinocchio, q, v,
-                             d->multibody.actuation->tau);
+                             d->multibody.actuation->tau, d->fext);
     pinocchio::updateGlobalPlacements(pinocchio_, d->pinocchio);
   } else {
     pinocchio::computeAllTerms(pinocchio_, d->pinocchio, q, v);
@@ -151,9 +168,18 @@ void DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::calcDiff(
   // Computing the dynamics derivatives
   if (without_armature_) {
     pinocchio::computeABADerivatives(
-        pinocchio_, d->pinocchio, q, v, d->multibody.actuation->tau,
+        pinocchio_, d->pinocchio, q, v, d->multibody.actuation->tau, d->fext,
         d->Fx.leftCols(nv), d->Fx.rightCols(nv), d->pinocchio.Minv);
-    d->Fx.noalias() += d->pinocchio.Minv * d->multibody.actuation->dtau_dx;
+    // d->Fx.noalias() += d->pinocchio.Minv * d->multibody.actuation->dtau_dx;
+    // d->Fu.noalias() = d->pinocchio.Minv * d->multibody.actuation->dtau_du;
+
+    // ---- Impedance ---
+    pinocchio::Jlog6(d->Xerr, d->dXerr);  // right derivative of log6
+    d->dtau_dx.leftCols(nv) =
+        d->multibody.actuation->dtau_dx.leftCols(nv) + d->J.transpose() * Kmat_ * d->dXerr* d->J;
+    d->dtau_dx.rightCols(nv) =
+        d->multibody.actuation->dtau_dx.rightCols(nv) + d->J.transpose() * Dmat_ * d->J;
+    d->Fx.noalias() += d->pinocchio.Minv * d->dtau_dx;
     d->Fu.noalias() = d->pinocchio.Minv * d->multibody.actuation->dtau_du;
   } else {
     pinocchio::computeRNEADerivatives(pinocchio_, d->pinocchio, q, v, d->xout);
@@ -316,6 +342,40 @@ template <typename Scalar>
 const typename MathBaseTpl<Scalar>::VectorXs&
 DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::get_armature() const {
   return armature_;
+}
+
+// ---- Impedance ---
+template <typename Scalar>
+const pinocchio::SE3Tpl<Scalar>&
+DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::get_reference() const {
+  return pref_;
+}
+template <typename Scalar>
+const typename MathBaseTpl<Scalar>::Matrix6s&
+DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::get_stiffness() const {
+  return Kmat_;
+}
+template <typename Scalar>
+const typename MathBaseTpl<Scalar>::Matrix6s&
+DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::get_damping() const {
+  return Dmat_;
+}
+
+// ---- Impedance ---
+template <typename Scalar>
+void DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::set_reference(
+  const pinocchio::SE3Tpl<Scalar>& pref) {
+  pref_ = pref;
+}
+template <typename Scalar>
+void DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::set_stiffness(
+  const Matrix6s& K) {
+  Kmat_ = K;
+}
+template <typename Scalar>
+void DifferentialActionModelImpedanceFwdDynamicsTpl<Scalar>::set_damping(
+  const Matrix6s& D) {
+  Dmat_ = D;
 }
 
 template <typename Scalar>
